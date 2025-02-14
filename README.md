@@ -4,4 +4,6 @@ my solutions for the challs in [Damn-Vulnerable-DeFi](https://www.damnvulnerable
 
 [Writeup in Chinese](https://zysgmzb.club/index.php/archives/345)
 
-Challenges that have not been resolved yet : curvy-puppet and withdrawal
+Challenges that have not been resolved yet : withdrawal
+
+[another write up that I think is great](https://github.com/SunWeb3Sec/damn-vulnerable-defi-v4-solutions)
